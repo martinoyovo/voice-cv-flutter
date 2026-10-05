@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:livekit_components/livekit_components.dart' as components;
 import 'package:provider/provider.dart';
 
+import 'branding.dart';
 import 'controllers/app_ctrl.dart';
 import 'screens/agent_screen.dart';
 import 'screens/welcome_screen.dart';
@@ -67,7 +68,7 @@ class VoiceAssistantApp extends StatelessWidget {
     child: components.SessionContext(
       session: appCtrl.session,
       child: MaterialApp(
-        title: 'Voice Assistant',
+        title: Branding.name,
         theme: buildTheme(isLight: true),
         darkTheme: buildTheme(isLight: false),
         // themeMode: ThemeMode.dark,

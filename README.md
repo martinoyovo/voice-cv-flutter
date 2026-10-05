@@ -1,101 +1,150 @@
-<img src="./.github/assets/app-icon.png" alt="Voice assistant app icon" width="100" height="100">
+# Martino Yovo — Voice CV
 
-# Flutter Agent Starter
+A personal page with a voice agent that answers questions about my work. Built on
+[LiveKit Agents](https://docs.livekit.io/agents/overview/) with the
+[LiveKit Flutter SDK](https://github.com/livekit/client-sdk-flutter), deployed to Vercel as a web app.
 
-This starter app template for [LiveKit Agents](https://docs.livekit.io/agents/overview/) provides a simple voice interface using the [LiveKit Flutter SDK](https://github.com/livekit/client-sdk-flutter). It supports [voice](https://docs.livekit.io/agents/start/voice-ai/), [transcriptions](https://docs.livekit.io/agents/build/text/), [live video input](https://docs.livekit.io/agents/build/vision/#video), and [virtual avatars](https://docs.livekit.io/agents/integrations/avatar/).
+The Flutter client runs on web, iOS, macOS, and Android. The voice agent itself lives in a separate
+project (`voice-cv`) and registers with LiveKit under the agent name `voice-cv`.
 
-This template is compatible with iOS, macOS, Android, and web. It is free for you to use or modify as you see fit.
+## How it connects
 
-<img src="./.github/assets/screenshot.png" alt="Voice Assistant Screenshot" height="500">
-
-## Getting started
-
-Run the following command to automatically clone this template and connect it to LiveKit Cloud.
-
-```bash
-lk app create --template agent-starter-flutter
+```
+browser ──POST /api/token──> Vercel function ──mints JWT──> LiveKit Cloud
+   │                         (api/token.ts)                      │
+   └──────────── WebRTC, room "cv-<uuid>" ───────────────────────┘
+                                   ▲
+                         voice-cv agent worker
+                      (dispatched by the token's room config)
 ```
 
-This will create a new Flutter project in the current directory. Install dependencies and run the app:
+`api/token.ts` is the only place the LiveKit API key and secret exist. For each request it:
+
+- generates a **fresh room** (`cv-<uuid>`) and a **fresh participant identity**, both server-side —
+  the request body is ignored, so a caller cannot ask for someone else's room;
+- grants only what a conversation needs (`roomJoin` on that one room, publish, subscribe) with a
+  15-minute TTL and no room-administration rights;
+- attaches a `RoomConfiguration` that explicitly dispatches the `voice-cv` agent. This is required:
+  a worker registered with an `agentName` is **not** auto-dispatched to new rooms, so without it the
+  room would open with nobody in it.
+
+The client never sees a credential. `lib/controllers/app_ctrl.dart` points an
+`EndpointTokenSource` at `/api/token`, resolved against the current page.
+
+## Local development
+
+Run the agent (in the `voice-cv` project) and the Flutter app side by side:
+
 ```bash
+# in voice-cv/
+pnpm dev
+
+# here
 flutter pub get
-flutter run
+flutter run -d chrome
 ```
 
-Note: You may need to configure signing certificates in Xcode if building to a real iOS device.
+`flutter run -d chrome` serves the app without the Vercel function, so `/api/token` will 404. To get
+a working token locally, run the whole thing through the Vercel CLI instead:
 
-The app is configured to connect to the LiveKit homepage agent by default, which you can also try at [livekit.com](https://www.livekit.com). To point the app at your own agent (see [Connect to your agent](#connect-to-your-agent)).
-
-> [!NOTE]
-> To setup without the LiveKit CLI, clone the repository and then create the `assets/.env` file manually from a copy of `.env.example`. The env file is optional: without any configuration, the app connects to a default agent — the same one featured on the [LiveKit homepage](https://livekit.io) — so you can try it out right away.
-
-## Connect to your agent
-
-To switch from the default agent to your own, you first need a LiveKit agent to speak with. For a no-code setup, use the [Agent Builder](https://docs.livekit.io/agents/start/builder/). For more customization, try our starter agent for [Python](https://github.com/livekit-examples/agent-starter-python), [Node.js](https://github.com/livekit-examples/agent-starter-node), or [create your own from scratch](https://docs.livekit.io/agents/start/voice-ai/).
-
-Second, you need a token server. For development, the easiest option is the [development token server](https://docs.livekit.io/frontends/build/authentication/development-token-server/): turn on the **Development token server** switch on the [Settings](https://cloud.livekit.io/projects/p_/settings/project) page in LiveKit Cloud and copy the **Token server ID**.
-
-Then fill the `LIVEKIT_TOKEN_SERVER_ID` in your `assets/.env`:
-
-```sh
-LIVEKIT_TOKEN_SERVER_ID=<your-token-server-id>
+```bash
+flutter build web
+npx vercel dev
 ```
 
-or modify `lib/controllers/app_ctrl.dart` to replace the `DevelopmentTokenSource` with your own token source implementation (development-only hardcoded credentials are also supported there).
+`vercel dev` serves `build/web` and runs `api/token.ts` on the same origin, which is what the
+deployed site does. It reads the three LiveKit variables from `.env.local` — pull them down with
+`npx vercel env pull .env.local`.
 
-> [!NOTE]
-> The development token server is for prototyping only — any client can request a token with any permissions. See [Token generation in production](#token-generation-in-production) before you ship.
->
-> This setting was previously called the *sandbox token server*, and `LIVEKIT_SANDBOX_ID` is still accepted as a fallback for existing `.env` files.
+### Native builds
 
-## Feature overview
+A native build has no page to resolve `/api/token` against, so pass the deployed endpoint at build
+time:
 
-This starter app supports several features of the agents framework and is intended as a base you can adapt for your own use case.
+```bash
+flutter build apk --dart-define=TOKEN_ENDPOINT=https://<your-deployment>/api/token
+```
+
+## Deploying
+
+The project is configured so `build/web` is the site and `api/` are serverless functions
+(see `vercel.json`).
+
+```bash
+flutter build web --release
+npx vercel deploy --prod
+```
+
+`scripts/vercel-build.sh` reuses the `build/web` you just uploaded. If it is missing — a
+Git-triggered deploy, for instance — the script fetches the pinned Flutter SDK and builds from
+source instead, so both paths work. Bump `FLUTTER_VERSION` there when you upgrade Flutter.
+
+### Environment variables
+
+Three variables, set on the Vercel project (Production, Preview, Development):
+
+| Variable | Source |
+| --- | --- |
+| `LIVEKIT_URL` | LiveKit Cloud project settings (`wss://…`) |
+| `LIVEKIT_API_KEY` | LiveKit Cloud → Settings → Keys |
+| `LIVEKIT_API_SECRET` | LiveKit Cloud → Settings → Keys |
+
+`LIVEKIT_AGENT_NAME` is optional and defaults to `voice-cv`; set it if the agent worker ever
+registers under a different name.
+
+### Known gap: no rate limiting
+
+`/api/token` is unauthenticated and unthrottled. Keys stay server-side and rooms are isolated per
+visitor, but anyone can POST it in a loop and run up LiveKit usage. Before this page sees real
+traffic, put a limit in front of it — [Vercel WAF rate limiting](https://vercel.com/docs/vercel-waf/rate-limiting-sdk)
+or a KV-backed counter keyed on IP.
+
+## The app
+
+### Branding and copy
+
+Name, tagline, button label, and the transcript speaker labels all live in `lib/branding.dart`.
+
+### Live transcript
+
+While connected, `lib/widgets/transcript_view.dart` renders a scrolling transcript of the
+conversation from `session.messages`, labelling each entry **You** or **Assistant**. LiveKit supplies
+both sides: `UserTranscript` (speech-to-text) and `UserInput` (typed) for the visitor,
+`AgentTranscript` for the agent. The transcript is the default view on connect; the control bar
+toggles over to a full-screen audio visualizer.
 
 ### Text, video, and voice input
 
-This app supports:
+- **Voice**: microphone audio. **Requires microphone permissions.**
+- **Text**: the message bar, for visitors who would rather type.
+- **Video**: optional camera / screen share, if the agent is set up to process visual input.
 
-- **Voice**: send microphone audio to your agent. **Requires microphone permissions.**
-- **Text**: send text input using the message bar.
-- **Video**: optionally share camera and/or screen share tracks to the room so your agent can process visual input (requires an agent/model that supports it).
-
-Related docs:
-
-- Voice agents: https://docs.livekit.io/agents/start/voice-ai/
-- Text: https://docs.livekit.io/agents/build/text/
-- Vision/video: https://docs.livekit.io/agents/build/vision/#video
-- Screen share: https://docs.livekit.io/home/client/tracks/screenshare/
-
-If you have trouble with screen sharing, refer to the docs linked above for more setup instructions.
+Docs: [voice](https://docs.livekit.io/agents/start/voice-ai/) ·
+[text](https://docs.livekit.io/agents/build/text/) ·
+[vision](https://docs.livekit.io/agents/build/vision/#video) ·
+[screen share](https://docs.livekit.io/home/client/tracks/screenshare/)
 
 ### Session
 
-The app is built around two core concepts:
+Built around two objects:
 
-- `livekit_client.Session`: connects to LiveKit, dispatches/observes the agent, and provides a message history via `session.messages` as well as helpers like `session.sendText(...)`.
-- `livekit_components.RoomContext` / `MediaDeviceContext`: manages local media tracks (microphone, camera, screen share) and their lifecycle.
+- `livekit_client.Session` — connects to LiveKit, dispatches and observes the agent, and exposes the
+  message history via `session.messages` plus helpers like `session.sendText(...)`.
+- `livekit_components.RoomContext` / `MediaDeviceContext` — local media tracks (microphone, camera,
+  screen share) and their lifecycle.
 
 ### Preconnect audio buffer
 
-This app enables `preConnectAudio` by default to capture and buffer audio before the room connection completes. This allows the connection to appear "instant" from the user's perspective and makes the app more responsive.
-
-To disable this feature, set `preConnectAudio` to `false` in `SessionOptions` when creating the `Session` (see `lib/controllers/app_ctrl.dart`).
+`preConnectAudio` is on by default, buffering audio before the room connection finishes so the call
+feels instant. Turn it off in `SessionOptions` in `lib/controllers/app_ctrl.dart`.
 
 ### Virtual avatar / agent video
 
-If your agent publishes a video track (for example via a [virtual avatar](https://docs.livekit.io/agents/integrations/avatar/) integration), the app renders the agent's video when available and falls back to an audio visualizer otherwise.
+If the agent publishes a video track (for example via a
+[virtual avatar](https://docs.livekit.io/agents/integrations/avatar/)), the app renders it and falls
+back to the audio visualizer otherwise.
 
-## Token generation in production
+## Credits
 
-In a production environment, you will be responsible for developing a solution to [generate tokens for your users](https://docs.livekit.io/home/server/generating-tokens/) that integrates with your authentication system.
-
-You should replace the `DevelopmentTokenSource` in `lib/controllers/app_ctrl.dart` with an `EndpointTokenSource` or your own `TokenSourceFixed` / `TokenSourceConfigurable` implementation. You can also use `.cached()` to cache valid tokens and avoid unnecessary token requests.
-
-## Running on Simulator / Emulator
-
-To use this template with video (or screen sharing) input, you may need to run the app on a physical device depending on platform and simulator/emulator capabilities. Testing on Simulator/Emulator will still support voice and text modes.
-
-## Contributing
-
-This template is open source and we welcome contributions! Please open a PR or issue through GitHub, and don't forget to join us in the [LiveKit Community Slack](https://livekit.io/join-slack)!
+Built from LiveKit's [agent-starter-flutter](https://github.com/livekit-examples/agent-starter-flutter)
+template, which is open source under the Apache 2.0 licence (see `LICENSE`).

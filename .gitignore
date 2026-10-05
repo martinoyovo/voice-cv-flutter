@@ -31,3 +31,8 @@ doc/api/
 
 .idea/
 *.iml
+# Node dependencies for the api/ serverless functions
+node_modules/
+
+# Vercel CLI local project link
+.vercel

@@ -1,11 +1,11 @@
 {
-    "name": "voice_assistant",
-    "short_name": "voice_assistant",
+    "name": "Martino Yovo — Voice CV",
+    "short_name": "Martino Yovo",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "An AI voice assistant built with LiveKit",
+    "background_color": "#DBDBD8",
+    "theme_color": "#070707",
+    "description": "Voice CV agent for Martino Yovo, AI Engineer & Developer Educator.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

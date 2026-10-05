@@ -6,9 +6,22 @@ import 'package:livekit_client/livekit_client.dart' as sdk;
 import 'package:livekit_components/livekit_components.dart' as components;
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-final String homepageAgentTokenEndpoint = 'https://livekit.com/api/homepage-agent/token';
+/// Path of the endpoint that mints a room and a participant token. It is served
+/// by `api/token.ts` next to the web build, so the LiveKit API key and secret
+/// stay on the server and never reach this app.
+const String _tokenEndpointPath = '/api/token';
+
+/// Absolute token endpoint, for builds that are not served from the same origin
+/// as the function. A native app has no page to resolve a relative path
+/// against, so pass one at build time:
+/// `flutter build apk --dart-define=TOKEN_ENDPOINT=https://your-host/api/token`
+const String _tokenEndpointOverride = String.fromEnvironment('TOKEN_ENDPOINT');
+
+/// Where the app asks for connection details. On web this resolves against the
+/// current page, so the deployed site calls its own `/api/token`.
+Uri get tokenEndpoint =>
+    _tokenEndpointOverride.isNotEmpty ? Uri.parse(_tokenEndpointOverride) : Uri.base.resolve(_tokenEndpointPath);
 
 enum AppScreenState { welcome, agent }
 
@@ -20,7 +33,9 @@ class AppCtrl extends ChangeNotifier {
 
   // States
   AppScreenState appScreenState = AppScreenState.welcome;
-  AgentScreenState agentScreenState = AgentScreenState.visualizer;
+  // The transcript is the default view: it is visible as soon as a session
+  // connects, and the control bar can toggle over to the full visualizer.
+  AgentScreenState agentScreenState = AgentScreenState.transcription;
 
   //Test
   bool isUserCameEnabled = false;
@@ -33,41 +48,10 @@ class AppCtrl extends ChangeNotifier {
   late final roomContext = components.RoomContext(room: room);
   late final sdk.Session session = _createSession(room: room);
 
-  static sdk.Session _createSession({required sdk.Room room}) {
-    // Development-only hardcoded credentials (optional).
-    const hardcodedServerUrl = null; // e.g. 'wss://your-host'
-    const hardcodedToken = null; // e.g. 'eyJ...'
-
-    if (hardcodedServerUrl != null && hardcodedToken != null) {
-      return sdk.Session.fromFixedTokenSource(
-        sdk.LiteralTokenSource(
-          serverUrl: hardcodedServerUrl,
-          participantToken: hardcodedToken,
-        ),
-        options: sdk.SessionOptions(room: room),
-      );
-    }
-
-    // The development token server ID from your LiveKit Cloud project's Settings page.
-    // LIVEKIT_SANDBOX_ID is the former name of this setting and is still accepted.
-    final tokenServerId = (dotenv.env['LIVEKIT_TOKEN_SERVER_ID'] ?? dotenv.env['LIVEKIT_SANDBOX_ID'])?.replaceAll(
-      '"',
-      '',
-    );
-    const placeholderIds = {'<your-token-server-id>', '<your-sandbox-id>'};
-
-    sdk.EndpointTokenSource tokenSource;
-    if (tokenServerId == null || tokenServerId.isEmpty || placeholderIds.contains(tokenServerId)) {
-      tokenSource = sdk.EndpointTokenSource(url: Uri.parse(homepageAgentTokenEndpoint));
-    } else {
-      tokenSource = sdk.DevelopmentTokenSource(id: tokenServerId);
-    }
-
-    return sdk.Session.fromConfigurableTokenSource(
-      tokenSource,
-      options: sdk.SessionOptions(room: room),
-    );
-  }
+  static sdk.Session _createSession({required sdk.Room room}) => sdk.Session.fromConfigurableTokenSource(
+    sdk.EndpointTokenSource(url: tokenEndpoint),
+    options: sdk.SessionOptions(room: room),
+  );
 
   bool isSendButtonEnabled = false;
   bool isSessionStarting = false;
@@ -171,7 +155,7 @@ class AppCtrl extends ChangeNotifier {
     await session.end();
     session.restoreMessageHistory(const []);
     appScreenState = AppScreenState.welcome;
-    agentScreenState = AgentScreenState.visualizer;
+    agentScreenState = AgentScreenState.transcription;
     notifyListeners();
   }
 

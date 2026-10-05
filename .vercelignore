@@ -1,0 +1,27 @@
+# What Vercel needs is build/web (the site), api/ (the functions) and the
+# Flutter sources that scripts/vercel-build.sh falls back to when build/web was
+# not uploaded. Everything below is dead weight for a web deployment.
+
+# Native platform projects
+android/
+ios/
+macos/
+linux/
+windows/
+
+# Local env files: never upload a credential into the deployment. `vercel link`
+# writes an OIDC token to .env.local, and `vercel env pull` writes more here.
+.env
+.env.*
+
+# Local tooling and CI
+.dart_tool/
+.github/
+test/
+devtools_options.yaml
+taskfile.yaml
+
+# Flutter build intermediates: keep the web output, drop the rest (the caches
+# and test artifacts next to it are ~175 MB).
+build/*
+!build/web

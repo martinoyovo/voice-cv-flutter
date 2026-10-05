@@ -1,0 +1,22 @@
+{
+  "name": "voice-cv-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web deployment for the Martino Yovo voice CV: Flutter web front end plus the LiveKit token endpoint.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "livekit-server-sdk": "^2.19.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@vercel/node": "^20.0.0",
+    "typescript": "^7.0.2",
+    "vercel": "^62.2.0"
+  }
+}

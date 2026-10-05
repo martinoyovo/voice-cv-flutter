@@ -11,6 +11,7 @@ import '../widgets/agent_layout_switcher.dart';
 import '../widgets/agent_status_indicator.dart';
 import '../widgets/camera_toggle_button.dart';
 import '../widgets/message_bar.dart';
+import '../widgets/transcript_view.dart';
 
 class AgentTrackView extends StatelessWidget {
   const AgentTrackView({super.key});
@@ -178,22 +179,7 @@ class AgentScreen extends StatelessWidget {
         Expanded(
           child: GestureDetector(
             onTap: () => ctx.read<AppCtrl>().messageFocusNode.unfocus(),
-            child: Consumer<sdk.Session>(
-              builder: (context, session, _) {
-                if (session.messages.isEmpty) {
-                  return _AgentStatusPlaceholder(isAgentConnected: session.agent.isConnected);
-                }
-                return components.ChatScrollView(
-                  session: session,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                  physics: const BouncingScrollPhysics(),
-                  messageBuilder: (context, message) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _MessageBubble(message: message),
-                  ),
-                );
-              },
-            ),
+            child: const TranscriptView(),
           ),
         ),
         Padding(
@@ -211,90 +197,4 @@ class AgentScreen extends StatelessWidget {
       ],
     ),
   );
-}
-
-class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
-
-  final sdk.ReceivedMessage message;
-
-  bool get _isUserMessage => message.content is sdk.UserInput || message.content is sdk.UserTranscript;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = message.content.text.trim();
-    if (text.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final bool isUser = _isUserMessage;
-    final alignment = isUser ? Alignment.centerRight : Alignment.centerLeft;
-    final colorScheme = Theme.of(context).colorScheme;
-    final background = isUser ? colorScheme.primary : colorScheme.surfaceContainerHighest;
-    final foreground = isUser ? colorScheme.onPrimary : colorScheme.onSurfaceVariant;
-
-    return Align(
-      alignment: alignment,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(18),
-              topRight: const Radius.circular(18),
-              bottomLeft: Radius.circular(isUser ? 18 : 4),
-              bottomRight: Radius.circular(isUser ? 4 : 18),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: foreground),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AgentStatusPlaceholder extends StatelessWidget {
-  const _AgentStatusPlaceholder({required this.isAgentConnected});
-
-  final bool isAgentConnected;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.graphic_eq, size: 32, color: colorScheme.primary.withValues(alpha: 0.7)),
-          const SizedBox(height: 12),
-          Text(
-            isAgentConnected ? 'Agent is listening' : 'Waiting for agent',
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (isAgentConnected)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Start a conversation to see messages here.',
-                style: textTheme.bodySmall?.copyWith(color: colorScheme.outline),
-                textAlign: TextAlign.center,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
 }
