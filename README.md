@@ -91,13 +91,18 @@ The project keeps Vercel's standard protection: the production and custom domain
 individual deployment URLs require a Vercel login. That is the desired split — visitors reach the
 site, work-in-progress deployments stay private.
 
-`cv.martinoyovo.com` needs one DNS record at the domain's provider (Hostinger):
+`cv.martinoyovo.com` is served via a single DNS record at the domain's provider (Hostinger):
 
 ```
 A    cv    76.76.21.21
 ```
 
-Check it with `npx vercel domains verify cv.martinoyovo.com`.
+Re-check it any time with `npx vercel domains verify cv.martinoyovo.com`.
+
+`vercel domains inspect` will report `dns-change-recommended` and flag the nameservers with a ✘.
+**Ignore it.** It is asking for the whole domain to be moved onto Vercel's nameservers, which would
+break the apex and `www` — those serve the portfolio from Hostinger, not from here. A single A
+record on a subdomain is a supported configuration and verifies as `ok`.
 
 ### Environment variables
 
