@@ -79,6 +79,26 @@ npx vercel deploy --prod
 Git-triggered deploy, for instance — the script fetches the pinned Flutter SDK and builds from
 source instead, so both paths work. Bump `FLUTTER_VERSION` there when you upgrade Flutter.
 
+### URLs and deployment protection
+
+| URL | Access |
+| --- | --- |
+| `https://cv.martinoyovo.com` | public (custom domain, primary) |
+| `https://voice-cv-flutter.vercel.app` | public |
+| per-deployment URLs (`…-<hash>-….vercel.app`) | gated behind Vercel Authentication |
+
+The project keeps Vercel's standard protection: the production and custom domains are public, while
+individual deployment URLs require a Vercel login. That is the desired split — visitors reach the
+site, work-in-progress deployments stay private.
+
+`cv.martinoyovo.com` needs one DNS record at the domain's provider (Hostinger):
+
+```
+A    cv    76.76.21.21
+```
+
+Check it with `npx vercel domains verify cv.martinoyovo.com`.
+
 ### Environment variables
 
 Three variables, set on the Vercel project (Production, Preview, Development):
